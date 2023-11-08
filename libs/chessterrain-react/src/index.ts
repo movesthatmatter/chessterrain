@@ -1,1 +1,1 @@
-export * from './lib/chessterrain-react';
+export * from './lib';

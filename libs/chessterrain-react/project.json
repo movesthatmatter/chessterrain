@@ -12,6 +12,16 @@
         "lintFilePatterns": ["libs/chessterrain-react/**/*.{ts,tsx,js,jsx}"]
       }
     },
+    "tsc": {
+      "executor": "nx:run-commands",
+      "options": {
+          "commands": [
+              {
+                  "command": "tsc --noEmit -p libs/chessterrain-react/tsconfig.lib.json"
+              }
+          ]
+      }
+    },
     "build": {
       "executor": "@nx/vite:build",
       "outputs": ["{options.outputPath}"],
