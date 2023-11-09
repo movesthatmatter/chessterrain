@@ -38,19 +38,24 @@ import { RelativeArrow, StyledTerrainCoord } from './types';
 import { AnnotationsLayer } from './components/AnnotationsLayer';
 import { BoardState } from './Board/types';
 import { Color } from './commonTypes';
-import { IdentifiablePieceState } from './Piece/types';
+import {
+  GeneralBoardState,
+  IdentifiablePiece,
+  // IdentifiablePieceState
+} from './Piece/types';
 import { coordToMatrixIndex } from './util';
 
 // TODO: This compoonent should not be in Maha, as it's dynamic enough
 // Can be in itos own lib or just in game-mehcanics or game-ui, o just chess-terrain
 
+// TODO: The identifiablePiece should be given gerneically so the pieceSTate is inferrred correctly outside
 export type ChessTerrainProps = {
   sizePx: number;
-  board: BoardState;
+  board: GeneralBoardState;
   renderPiece: PiecesLayerProps['renderPiece'];
 
-  promotablePiecesMap: PromotionDialogLayerProps['promotablePiecesMap'];
-  renderPromotablePiece: PromotionDialogLayerProps['renderPromotablePiece'];
+  promotablePiecesMap?: PromotionDialogLayerProps['promotablePiecesMap'];
+  renderPromotablePiece?: PromotionDialogLayerProps['renderPromotablePiece'];
 
   playingColor: Color;
   arrows?: Arrow[];
@@ -68,19 +73,19 @@ export type ChessTerrainProps = {
   lightSquareColor?: string;
   darkSquareColor?: string;
 
-  onCoordClicked?: (coord: Coord, piece?: IdentifiablePieceState) => void;
+  onCoordClicked?: (coord: Coord, piece?: IdentifiablePiece) => void;
 
   // Sugar for onCoordClicked with piece or not
   // onPieceClicked?: (piece: IdentifiablePieceState, coord: Coord) => void;
   // onEmptySquareClicked?: (coord: Coord) => void;
 
-  onCoordHover?: (coord: Coord, piece?: IdentifiablePieceState) => void;
+  onCoordHover?: (coord: Coord, piece?: IdentifiablePiece) => void;
 
   onBoardMouseLeave?: () => void;
 
   onPieceDragStarted?: (p: {
     from: {
-      piece: IdentifiablePieceState;
+      piece: IdentifiablePiece;
       coords: {
         absoluteCoords: AbsoluteCoord;
         relativeCoords: Coord;
@@ -90,24 +95,24 @@ export type ChessTerrainProps = {
   }) => void;
   onPieceDragStopped?: (p: {
     from: {
-      piece: IdentifiablePieceState;
+      piece: IdentifiablePiece;
       absoluteCoords: AbsoluteCoord;
       relativeCoords: Coord;
     };
     to: {
-      piece?: IdentifiablePieceState;
+      piece?: IdentifiablePiece;
       absoluteCoords: AbsoluteCoord;
       relativeCoords: Coord;
     };
   }) => void;
   onPieceDragUpdate?: (p: {
     from: {
-      piece: IdentifiablePieceState;
+      piece: IdentifiablePiece;
       absoluteCoords: AbsoluteCoord;
       relativeCoords: Coord;
     };
     to: {
-      piece?: IdentifiablePieceState;
+      piece?: IdentifiablePiece;
       absoluteCoords: AbsoluteCoord;
       relativeCoords: Coord;
     };
@@ -115,7 +120,7 @@ export type ChessTerrainProps = {
 
   promotion?: Coord;
 
-  onPromotePiece: (p: string) => void;
+  onPromotePiece?: (p: string) => void;
 };
 
 export const ChessTerrain: React.FC<ChessTerrainProps> = ({
@@ -135,6 +140,7 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
   onPieceDragStarted = noop,
   onPieceDragUpdate = noop,
   onPieceDragStopped = noop,
+  onPromotePiece = noop,
 
   playingColor,
   orientation = playingColor,
@@ -145,7 +151,6 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
   styledCoords = [],
   promotion,
   freeArrow,
-  onPromotePiece = noop,
 
   lightSquareColor = 'white',
   darkSquareColor = 'black',
@@ -165,7 +170,7 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
   const isFlipped = useMemo(() => orientation !== 'white', [orientation]);
 
   const [draggedPiece, setDraggedPiece] = useState<{
-    piece: IdentifiablePieceState;
+    piece: IdentifiablePiece;
     from: AbsoluteCoord;
     to: AbsoluteCoord;
   }>();
@@ -555,7 +560,7 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
         style={styles.arrowsLayer}
         arrows={mergedArrows}
       />
-      {promotion && (
+      {promotion && promotablePiecesMap && renderPromotablePiece && (
         <PromotionDialogLayer
           playingColor={playingColor}
           isFlipped={isFlipped}
