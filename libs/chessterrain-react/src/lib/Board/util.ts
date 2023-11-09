@@ -69,12 +69,12 @@ export const printBoardAsTableWithState = (
   cellWidth = 10
 ) => {
   console.log(
-    table(
-      matrixMap(m, (v) => (v === 0 ? '\n' : v)),
+    // table(
+    //   matrixMap(m, (v) => (v === 0 ? '\n' : v))
       // {
       //   columnDefault: { width: cellWidth, alignment: 'center' },
       // }
-    )
+    // )
   );
 };
 
