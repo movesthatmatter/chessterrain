@@ -12,23 +12,29 @@ export const StyledCoordsLayer: React.FC<Props> = ({
   styledCoordsList,
   squareSize,
   style,
-}) => (
-  <div style={style}>
-    {styledCoordsList.map(({ style: coordStyle, className, ...coord }) => (
-      <div
-        key={serializeCoord(coord)}
-        className={className}
-        style={{
-          ...coordStyle,
-          position: 'absolute',
-          left: coord.col * squareSize,
-          top: coord.row * squareSize,
-          width: squareSize,
-          height: squareSize,
-        }}
-      >
-        {/* <span>{serializeCoord(coord)}</span> */}
-      </div>
-    ))}
-  </div>
-);
+}) => {
+  console.log('styledCoordsList', styledCoordsList);
+
+  return (
+    <div style={style}>
+      {styledCoordsList.map(
+        ({ style: coordStyle, className, relativeCoord }) => (
+          <div
+            key={serializeCoord(relativeCoord)}
+            className={className}
+            style={{
+              ...coordStyle,
+              position: 'absolute',
+              left: relativeCoord.col * squareSize,
+              top: relativeCoord.row * squareSize,
+              width: squareSize,
+              height: squareSize,
+            }}
+          >
+            {/* <span>{serializeCoord(coord)}</span> */}
+          </div>
+        )
+      )}
+    </div>
+  );
+};

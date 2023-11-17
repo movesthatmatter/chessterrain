@@ -14,7 +14,6 @@ import {
   matrixGet,
   matrixMap,
 } from '../util-kit';
-import { table } from 'console';
 import { Color, MoveOutcome } from '../commonTypes';
 
 // Returns the default color at the coord for any chess based games

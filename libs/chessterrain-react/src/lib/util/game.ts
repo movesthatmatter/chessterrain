@@ -48,6 +48,10 @@ export const isFullGameTurn = (g: GameTurn): g is FullGameTurn => !!(g && g[1]);
 export const toShortColor = (c: Color | ShortColor): ShortColor =>
   c[0] as ShortColor;
 
+// TODO: Eliminate the need for this so it doesn't take extra size space
+export const toLongColor = (c: Color | ShortColor): Color =>
+  c === 'b' || c === 'black' ? 'black' : 'white';
+
 export const coordToMatrixIndex = (c: Coord): MatrixIndex => [c.row, c.col];
 export const matrixIndexToCoord = ([row, col]: MatrixIndex): Coord => ({
   row,

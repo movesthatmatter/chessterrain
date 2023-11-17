@@ -1,31 +1,27 @@
 import { MouseEvent } from 'react';
 import { Arrow } from '../components/ArrowsLayer';
 import { RelativeArrow } from '../types';
-import { AbsoluteCoord, Coord } from '../util-kit';
+import { AbsoluteCoord, Coord, RelativeCoord } from '../util-kit';
 import { getMoveDelta } from '../Piece/util';
 
-export const getMouseCoords = (
+export const getDOMRectFromMouseEvent = (e: MouseEvent): DOMRect =>
+  (e.target as HTMLElement).getBoundingClientRect();
+
+export const getMouseCoordsInRect = (
   e: MouseEvent,
-  flipped = false
-): AbsoluteCoord => {
-  const rect = (e.target as any).getBoundingClientRect();
+  rect: DOMRect
+): AbsoluteCoord => ({
+  x: e.clientX - rect.left, // x position within the element.,
+  y: e.clientY - rect.top, // y position within the element.,
+});
 
-  const absolutePos = {
-    x: e.clientX - rect.left, // x position within the element.,
-    y: e.clientY - rect.top, // y position within the element.,
-  };
-
-  if (flipped) {
-    const next = {
-      x: rect.width - absolutePos.x,
-      y: rect.height - absolutePos.y,
-    };
-
-    return next;
-  }
-
-  return absolutePos;
-};
+export const flipAbsoluteCoords = (
+  coords: AbsoluteCoord,
+  rect: Pick<DOMRect, 'width' | 'height'>
+) => ({
+  x: rect.width - coords.x,
+  y: rect.height - coords.y,
+});
 
 export const isMouseInRect = (e: MouseEvent) => {
   const rect = (e.target as any).getBoundingClientRect();
@@ -130,13 +126,19 @@ export const determineArrowMargin = (
   };
 };
 
-export const getBoardCoordsFromAbsoluteCoords = ({
-  absoluteCoords,
-  squareSize,
-}: {
-  absoluteCoords: AbsoluteCoord;
-  squareSize: number;
-}): Coord => ({
-  row: Math.floor(absoluteCoords.y / squareSize),
-  col: Math.floor(absoluteCoords.x / squareSize),
-});
+/**
+ * Translates absolute coords (px) to Relative Coords
+ *
+ * @param param0
+ * @returns
+ */
+// export const getBoardCoordsFromAbsoluteCoords = ({
+//   absoluteCoords,
+//   squareSize,
+// }: {
+//   absoluteCoords: AbsoluteCoord;
+//   squareSize: number;
+// }): RelativeCoord => ({
+//   row: Math.floor(absoluteCoords.y / squareSize),
+//   col: Math.floor(absoluteCoords.x / squareSize),
+// });
