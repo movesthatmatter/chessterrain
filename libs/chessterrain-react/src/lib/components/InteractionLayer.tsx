@@ -67,7 +67,7 @@ export const InteractionLayer: React.FC<Props> = ({
           // Otherwise means click
           onClick(e);
         }
-      }, 100); // 100 ms is a good enough time to differentiate between click and drag
+      }, 200); // 100 ms is a good enough time to differentiate between click and drag
     },
     [onDragStart, onMouseDown, setIsDragActive, onClick]
   );

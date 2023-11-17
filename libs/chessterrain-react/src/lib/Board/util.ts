@@ -14,7 +14,6 @@ import {
   matrixGet,
   matrixMap,
 } from '../util-kit';
-import { table } from 'console';
 import { Color, MoveOutcome } from '../commonTypes';
 
 // Returns the default color at the coord for any chess based games
@@ -81,7 +80,7 @@ export const printBoardAsTableWithState = (
 export const toPieceId = <PR extends PieceRegistry>(
   ref: keyof PR,
   { row, col }: Coord
-): PieceId<PR> => `${String(ref)}:${row}-${col}`;
+): PieceId<PR> => `${String(ref)}:${row}-${col}` as PieceId; // TODO: this is hardcoded but it's like this only for Maha so it will be removed
 
 export const getRefFromPieceId = <PR extends PieceRegistry>(
   id: PieceId<PR>

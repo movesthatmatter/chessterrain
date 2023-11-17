@@ -1,17 +1,19 @@
 import React, { CSSProperties, ReactNode, useMemo } from 'react';
 import { Coord, makeStyles, MatrixIndex, matrixReduce } from '../util-kit';
-import { IdentifiablePieceState } from '../Piece/types';
-import { BoardState } from '../Board/types';
+import { GeneralBoardState, IdentifiablePiece } from '../Piece/types';
 import { matrixIndexToCoord } from '../util';
+import { ShortColor } from '../commonTypes';
 
 export type PiecesLayerProps = {
-  pieceLayoutState: BoardState['pieceLayoutState'];
+  pieceLayoutState: GeneralBoardState['pieceLayoutState'];
   squareSize: number;
   isFlipped: boolean;
   style?: CSSProperties;
 
   renderPiece: (p: {
-    piece: IdentifiablePieceState;
+    piece: IdentifiablePiece;
+    color: ShortColor;
+    label: string;
     isFlipped: boolean;
     coord: Coord;
     squareSize: number;
@@ -36,6 +38,11 @@ export const PiecesLayer: React.FC<PiecesLayerProps> = React.memo(
           return null;
         }
 
+        const color = piece.id.slice(0, piece.id.indexOf(':'))[0] as ShortColor;
+
+        const pieceWoColor = piece.id.slice(color.length + 1);
+        const label = pieceWoColor.slice(0, pieceWoColor.indexOf(':'));
+
         const currentZindex = index[0] * 10 + index[1];
         const zIndex = isFlipped ? maxZIndex - currentZindex : currentZindex;
 
@@ -51,6 +58,8 @@ export const PiecesLayer: React.FC<PiecesLayerProps> = React.memo(
           >
             {renderPiece({
               piece,
+              label,
+              color,
               isFlipped,
               coord,
               squareSize,
@@ -76,7 +85,7 @@ const sortById = (a: { id: string }, b: { id: string }) =>
   a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
 const getPiecesCoordsAndId = (
-  pieceLayoutState: BoardState['pieceLayoutState']
+  pieceLayoutState: GeneralBoardState['pieceLayoutState']
 ) =>
   matrixReduce(
     pieceLayoutState,

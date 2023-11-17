@@ -4,7 +4,7 @@ import {
   Queen,
   Rook,
 } from '@maha-monorepo/maha-chess-game-mechanics';
-import { matrixReduce } from '@maha-monorepo/util-kit';
+import { matrixReduce } from '../util-kit';
 import { GameConfigurator } from '../Game/types';
 import { Piece } from '../Piece/Piece';
 import { PieceId } from '../Piece/types';

@@ -1,14 +1,19 @@
 import { CSSProperties } from 'react';
 import { Arrow } from './components/ArrowsLayer';
 import { AbsoluteCoord, Coord, RelativeCoord } from './util-kit';
-import { PieceId } from './Piece/types';
+import {
+  IdentifiablePiece,
+  IdentifiablePieceState,
+  PieceId,
+} from './Piece/types';
 
 export type RelativeArrow = Omit<Arrow, 'from' | 'to'> & {
   from: RelativeCoord | AbsoluteCoord;
   to: RelativeCoord | AbsoluteCoord;
 };
 
-export type StyledTerrainCoord = Coord & {
+export type StyledTerrainCoord = {
+  relativeCoord: RelativeCoord;
   style?: CSSProperties;
   className?: string;
 };
@@ -19,4 +24,14 @@ export type StyledTerrainCoord = Coord & {
 
 export type PiecesMap = {
   [id: PieceId]: unknown | undefined | null;
+};
+
+export type RelativeCoordsWithPiece = {
+  relativeCoords: RelativeCoord;
+  piece: IdentifiablePiece;
+};
+
+export type RelativeCoordsWithOptionalPiece = {
+  relativeCoords: RelativeCoord;
+  piece?: IdentifiablePiece;
 };

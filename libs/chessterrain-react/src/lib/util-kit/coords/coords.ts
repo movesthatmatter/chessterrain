@@ -25,3 +25,11 @@ export const calculateDistanceBetween2Coords = (
   target: Coord
 ): number =>
   Math.max(Math.abs(dest.row - target.row), Math.abs(dest.col - target.col));
+
+export const absoluteCoordsToRelativeCoords = (
+  absoluteCoords: AbsoluteCoord,
+  squareSize: number
+): RelativeCoord => ({
+  row: Math.floor(absoluteCoords.y / squareSize),
+  col: Math.floor(absoluteCoords.x / squareSize),
+});

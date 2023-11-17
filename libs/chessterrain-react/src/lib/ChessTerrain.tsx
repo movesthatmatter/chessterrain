@@ -8,7 +8,6 @@ import React, {
   useState,
 } from 'react';
 import {
-  Coord,
   matrixGet,
   noop,
   SerializedCoord,
@@ -16,14 +15,16 @@ import {
   AbsoluteCoord,
   isRelativeCoord,
   coordsAreEqual,
+  absoluteCoordsToRelativeCoords,
 } from './util-kit';
 import { ArrowsLayer, Arrow } from './components/ArrowsLayer';
 import {
   coordToArrow,
   determineArrowMargin,
-  getBoardCoordsFromAbsoluteCoords,
-  getMouseCoords,
+  getMouseCoordsInRect,
+  flipAbsoluteCoords,
   isMouseInRect,
+  getDOMRectFromMouseEvent,
 } from './util';
 import { InteractionLayer } from './components/InteractionLayer';
 import { BackgroundLayer } from './components/BackgroundLayer';
@@ -36,21 +37,27 @@ import { PiecesLayer, PiecesLayerProps } from './components/PiecesLayer';
 import { OverlaysLayer } from './components/OverlaysLayer';
 import { RelativeArrow, StyledTerrainCoord } from './types';
 import { AnnotationsLayer } from './components/AnnotationsLayer';
-import { BoardState } from './Board/types';
+
 import { Color } from './commonTypes';
-import { IdentifiablePieceState } from './Piece/types';
+import {
+  GeneralBoardState,
+  IdentifiablePiece,
+  // IdentifiablePieceState
+} from './Piece/types';
 import { coordToMatrixIndex } from './util';
+import { useCallbackIf } from './hooks/useCallbackIf';
 
 // TODO: This compoonent should not be in Maha, as it's dynamic enough
 // Can be in itos own lib or just in game-mehcanics or game-ui, o just chess-terrain
 
+// TODO: The identifiablePiece should be given gerneically so the pieceSTate is inferrred correctly outside
 export type ChessTerrainProps = {
   sizePx: number;
-  board: BoardState;
+  board: GeneralBoardState;
   renderPiece: PiecesLayerProps['renderPiece'];
 
-  promotablePiecesMap: PromotionDialogLayerProps['promotablePiecesMap'];
-  renderPromotablePiece: PromotionDialogLayerProps['renderPromotablePiece'];
+  promotablePiecesMap?: PromotionDialogLayerProps['promotablePiecesMap'];
+  renderPromotablePiece?: PromotionDialogLayerProps['renderPromotablePiece'];
 
   playingColor: Color;
   arrows?: Arrow[];
@@ -68,54 +75,58 @@ export type ChessTerrainProps = {
   lightSquareColor?: string;
   darkSquareColor?: string;
 
-  onCoordClicked?: (coord: Coord, piece?: IdentifiablePieceState) => void;
+  onCoordClicked?: (p: {
+    relativeCoords: RelativeCoord;
+    piece?: IdentifiablePiece;
+  }) => void;
 
   // Sugar for onCoordClicked with piece or not
   // onPieceClicked?: (piece: IdentifiablePieceState, coord: Coord) => void;
   // onEmptySquareClicked?: (coord: Coord) => void;
 
-  onCoordHover?: (coord: Coord, piece?: IdentifiablePieceState) => void;
+  onCoordHover?: (p: {
+    relativeCoords: RelativeCoord;
+    piece?: IdentifiablePiece;
+  }) => void;
 
-  onBoardMouseLeave?: () => void;
+  onTerrainMouseLeave?: () => void;
 
   onPieceDragStarted?: (p: {
     from: {
-      piece: IdentifiablePieceState;
-      coords: {
-        absoluteCoords: AbsoluteCoord;
-        relativeCoords: Coord;
-      };
+      piece: IdentifiablePiece;
+      absoluteCoords: AbsoluteCoord;
+      relativeCoords: RelativeCoord;
     };
     squareSize: number;
   }) => void;
   onPieceDragStopped?: (p: {
     from: {
-      piece: IdentifiablePieceState;
+      piece: IdentifiablePiece;
       absoluteCoords: AbsoluteCoord;
-      relativeCoords: Coord;
+      relativeCoords: RelativeCoord;
     };
     to: {
-      piece?: IdentifiablePieceState;
+      piece?: IdentifiablePiece;
       absoluteCoords: AbsoluteCoord;
-      relativeCoords: Coord;
+      relativeCoords: RelativeCoord;
     };
   }) => void;
-  onPieceDragUpdate?: (p: {
+  onPieceDragUpdated?: (p: {
     from: {
-      piece: IdentifiablePieceState;
+      piece: IdentifiablePiece;
       absoluteCoords: AbsoluteCoord;
-      relativeCoords: Coord;
+      relativeCoords: RelativeCoord;
     };
     to: {
-      piece?: IdentifiablePieceState;
+      piece?: IdentifiablePiece;
       absoluteCoords: AbsoluteCoord;
-      relativeCoords: Coord;
+      relativeCoords: RelativeCoord;
     };
   }) => void;
 
-  promotion?: Coord;
+  promotion?: RelativeCoord;
 
-  onPromotePiece: (p: string) => void;
+  onPromotePiece?: (p: string) => void;
 };
 
 export const ChessTerrain: React.FC<ChessTerrainProps> = ({
@@ -130,11 +141,13 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
   onCoordClicked = noop,
 
   onCoordHover = noop,
-  onBoardMouseLeave = noop,
+  onTerrainMouseLeave = noop,
 
   onPieceDragStarted = noop,
-  onPieceDragUpdate = noop,
+  // onPieceDragUpdate = noop,
+  onPieceDragUpdated,
   onPieceDragStopped = noop,
+  onPromotePiece = noop,
 
   playingColor,
   orientation = playingColor,
@@ -145,7 +158,6 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
   styledCoords = [],
   promotion,
   freeArrow,
-  onPromotePiece = noop,
 
   lightSquareColor = 'white',
   darkSquareColor = 'black',
@@ -165,28 +177,62 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
   const isFlipped = useMemo(() => orientation !== 'white', [orientation]);
 
   const [draggedPiece, setDraggedPiece] = useState<{
-    piece: IdentifiablePieceState;
+    piece: IdentifiablePiece;
     from: AbsoluteCoord;
     to: AbsoluteCoord;
   }>();
 
-  const getMouseCoordsWithIsFlipped = useMemo(
-    () => (e: MouseEvent) => getMouseCoords(e, isFlipped),
-    [isFlipped]
+  const getAbsoluteMouseCoords = useMemo(
+    () => (e: MouseEvent) =>
+      getMouseCoordsInRect(e, getDOMRectFromMouseEvent(e)),
+    []
   );
+
+  // const getMouseCoordsWithIsFlipped = useMemo(
+  //   () => (e: MouseEvent) => {
+  //     const rect = getDOMRectFromMouseEvent(e);
+
+  //     return isFlipped
+  //       ? flipAbsoluteCoords(getMouseCoordsInRect(e, rect), rect)
+  //       : getMouseCoordsInRect(e, rect);
+  //   },
+  //   [isFlipped]
+  // );
+
+  const toBoardRelativeCoords = useMemo(() => {
+    if (isFlipped) {
+      // Hardcode the rect here since it's just the board as a square based on the sizePx
+      // This should simply work - if not it needs to be taken from the MouseEvent.target.getBoundRect()
+      //  but this should be faster and
+      const rect = {
+        width: sizePx,
+        height: sizePx,
+      };
+
+      return (absoluteCoords: AbsoluteCoord) => {
+        // These need to be flipped in order to get the correct relative coords
+        return absoluteCoordsToRelativeCoords(
+          flipAbsoluteCoords(absoluteCoords, rect),
+          squareSize
+        );
+      };
+    }
+
+    return (absoluteCoords: AbsoluteCoord) =>
+      absoluteCoordsToRelativeCoords(absoluteCoords, squareSize);
+  }, [board, squareSize, isFlipped, sizePx]);
 
   const onBoardClick = useCallback(
     (e: MouseEvent) => {
       e.stopPropagation();
 
-      const boardCoords = getBoardCoordsFromAbsoluteCoords({
-        absoluteCoords: getMouseCoordsWithIsFlipped(e),
-        squareSize,
-      });
+      const relativeBoardCoords = toBoardRelativeCoords(
+        getAbsoluteMouseCoords(e)
+      );
 
       const piece = matrixGet(board.pieceLayoutState, [
-        boardCoords.row,
-        boardCoords.col,
+        relativeBoardCoords.row,
+        relativeBoardCoords.col,
       ]);
 
       // if (piece) {
@@ -195,16 +241,18 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
       //   onEmptySquareClicked(boardCoords);
       // }
 
-      onCoordClicked(boardCoords, piece === 0 ? undefined : piece);
+      onCoordClicked({
+        relativeCoords: relativeBoardCoords,
+        piece: piece === 0 ? undefined : piece,
+      });
     },
     [
-      squareSize,
       board,
       onCoordClicked,
+      toBoardRelativeCoords,
       // onEmptySquareClicked,
       // onPieceClicked,
-      getBoardCoordsFromAbsoluteCoords,
-      getMouseCoordsWithIsFlipped,
+      // getMouseCoordsWithIsFlipped,
     ]
   );
 
@@ -219,21 +267,20 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
         return;
       }
 
-      const boardCoords = getBoardCoordsFromAbsoluteCoords({
-        absoluteCoords: getMouseCoordsWithIsFlipped(e),
-        squareSize,
-      });
+      const relativeBoardCoords = toBoardRelativeCoords(
+        getAbsoluteMouseCoords(e)
+      );
 
       if (
         hoveredCoords.current &&
-        coordsAreEqual(hoveredCoords.current, boardCoords)
+        coordsAreEqual(hoveredCoords.current, relativeBoardCoords)
       ) {
         return;
       }
 
       const piece = matrixGet(board.pieceLayoutState, [
-        boardCoords.row,
-        boardCoords.col,
+        relativeBoardCoords.row,
+        relativeBoardCoords.col,
       ]);
 
       // if (piece) {
@@ -242,9 +289,12 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
       //   onEmptySquareTouched(boardCoords);
       // }
 
-      onCoordHover(boardCoords, piece === 0 ? undefined : piece);
+      onCoordHover({
+        relativeCoords: relativeBoardCoords,
+        piece: piece === 0 ? undefined : piece,
+      });
 
-      hoveredCoords.current = boardCoords;
+      hoveredCoords.current = relativeBoardCoords;
     },
     [
       squareSize,
@@ -253,25 +303,16 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
       draggedPiece,
       // onEmptySquareTouched,
       // onPieceTouched,
-      getBoardCoordsFromAbsoluteCoords,
-      getMouseCoordsWithIsFlipped,
+      toBoardRelativeCoords,
+      // getMouseCoordsWithIsFlipped,
     ]
   );
 
   const onMouseLeave = useCallback(() => {
     // Reset the hovered coords ref
     hoveredCoords.current = undefined;
-    onBoardMouseLeave();
-  }, [onBoardMouseLeave]);
-
-  const normalizeAbsoluteCoordsToBoard = useMemo(
-    () => (absoluteCoords: AbsoluteCoord) =>
-      getBoardCoordsFromAbsoluteCoords({
-        absoluteCoords,
-        squareSize,
-      }),
-    [board, squareSize]
-  );
+    onTerrainMouseLeave();
+  }, [onTerrainMouseLeave]);
 
   const onDragStart = useCallback(
     (e: MouseEvent) => {
@@ -281,51 +322,62 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
         return;
       }
 
-      const mouseCoords = getMouseCoordsWithIsFlipped(e);
-      const boardCoords = normalizeAbsoluteCoordsToBoard(mouseCoords);
+      // const mouseCoordsWithFlipped = getMouseCoordsWithIsFlipped(e);
+      // const mouseCoords = getMouseCoordsInRect(e, getDOMRectFromMouseEvent(e));
+      const absoluteMouseCoords = getAbsoluteMouseCoords(e);
+      const relativeCoords = toBoardRelativeCoords(absoluteMouseCoords);
 
       const piece = matrixGet(board.pieceLayoutState, [
-        boardCoords.row,
-        boardCoords.col,
+        relativeCoords.row,
+        relativeCoords.col,
       ]);
 
       if (piece) {
-        setDraggedPiece({
-          piece,
-          from: mouseCoords,
-          to: mouseCoords,
+        setDraggedPiece((prev) => {
+          console.log('prev', prev?.piece.id, piece.id);
+          if (prev?.piece.id === piece.id) {
+            return prev;
+          }
+
+          return {
+            piece,
+            from: absoluteMouseCoords,
+            to: absoluteMouseCoords,
+          };
         });
 
         onPieceDragStarted({
           from: {
             piece,
-            coords: {
-              absoluteCoords: mouseCoords,
-              relativeCoords: boardCoords,
-            },
+            absoluteCoords: absoluteMouseCoords,
+            relativeCoords,
           },
           squareSize,
         });
       }
     },
     [
-      normalizeAbsoluteCoordsToBoard,
-      getMouseCoordsWithIsFlipped,
+      getAbsoluteMouseCoords,
+      toBoardRelativeCoords,
       onPieceDragStarted,
+      setDraggedPiece,
     ]
   );
 
   const onDragEnd = useCallback(
     (e: MouseEvent) => {
+      // console.log('on drag end?', draggedPiece);
+
       if (!draggedPiece) {
         return;
       }
 
-      const mouseCoords = getMouseCoordsWithIsFlipped(e);
+      // console.log('on drag end yep', draggedPiece);
+      // const absoluteMouseCoords = getMouseCoordsWithIsFlipped(e);
 
       const toCoords = {
         absoluteCoords: draggedPiece.to,
-        relativeCoords: normalizeAbsoluteCoordsToBoard(draggedPiece.to),
+        relativeCoords: toBoardRelativeCoords(draggedPiece.to),
       };
       const toPiece = matrixGet(
         board.pieceLayoutState,
@@ -340,59 +392,66 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
         from: {
           piece: draggedPiece.piece,
           absoluteCoords: draggedPiece.from,
-          relativeCoords: normalizeAbsoluteCoordsToBoard(draggedPiece.from),
+          relativeCoords: toBoardRelativeCoords(draggedPiece.from),
         },
       });
 
       setDraggedPiece(undefined);
     },
     [
-      getMouseCoordsWithIsFlipped,
-      normalizeAbsoluteCoordsToBoard,
+      // getMouseCoordsWithIsFlipped,
+      toBoardRelativeCoords,
       onPieceDragStopped,
+      setDraggedPiece,
       draggedPiece,
     ]
   );
 
-  const onDragUpdate = useCallback(
+  const onDragUpdate = useCallbackIf(
+    typeof onPieceDragUpdated === 'function',
     (e: MouseEvent) => {
-      const mouseCoords = getMouseCoordsWithIsFlipped(e);
+      // const mouseCoords = getMouseCoordsWithIsFlipped(e);
 
+      // const mouseCoords = getMouseCoordsInRect(e, getDOMRectFromMouseEvent(e));
+
+      // console.log('on drag update');
       // If not in board return early
       if (!isMouseInRect(e)) {
         return;
       }
 
+      // console.log('on drag update yep');
+
       setDraggedPiece((prev) => {
         if (!prev) {
-          return prev;
+          return undefined;
         }
 
         return {
           ...prev,
-          to: mouseCoords,
+          to: getAbsoluteMouseCoords(e),
         };
       });
     },
-    [getMouseCoordsWithIsFlipped]
+    [getAbsoluteMouseCoords, setDraggedPiece]
   );
 
   useEffect(() => {
-    if (draggedPiece) {
+    if (draggedPiece && onPieceDragUpdated) {
       const toCoords = {
         absoluteCoords: draggedPiece.to,
-        relativeCoords: normalizeAbsoluteCoordsToBoard(draggedPiece.to),
+        relativeCoords: toBoardRelativeCoords(draggedPiece.to),
       };
       const toPiece = matrixGet(
         board.pieceLayoutState,
         coordToMatrixIndex(toCoords.relativeCoords)
       );
 
-      onPieceDragUpdate({
+      onPieceDragUpdated({
         from: {
           piece: draggedPiece.piece,
           absoluteCoords: draggedPiece.from,
-          relativeCoords: normalizeAbsoluteCoordsToBoard(draggedPiece.from),
+          relativeCoords: toBoardRelativeCoords(draggedPiece.from),
         },
         to: {
           ...toCoords,
@@ -400,7 +459,7 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
         },
       });
     }
-  }, [normalizeAbsoluteCoordsToBoard, draggedPiece]);
+  }, [toBoardRelativeCoords, draggedPiece]);
 
   const mergedArrows = useMemo(() => {
     return [
@@ -555,7 +614,7 @@ export const ChessTerrain: React.FC<ChessTerrainProps> = ({
         style={styles.arrowsLayer}
         arrows={mergedArrows}
       />
-      {promotion && (
+      {promotion && promotablePiecesMap && renderPromotablePiece && (
         <PromotionDialogLayer
           playingColor={playingColor}
           isFlipped={isFlipped}
@@ -616,6 +675,7 @@ const styles = {
     bottom: 0,
     cursor: 'pointer',
     zIndex: 9,
+    // background: 'rgba(100, 0, 0, .2)',
   },
 
   backgroundLayer: {
